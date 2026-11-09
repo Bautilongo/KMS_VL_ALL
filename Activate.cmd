@@ -295,7 +295,7 @@ SET "EditionID=%EditionPKG:~0,-7%"
 FOR /F "TOKENS=3 DELIMS=: " %%A IN ('DISM /English /Online /Get-CurrentEdition %_Nul6% ^| FIND /I "Current Edition :"') DO SET "EditionID=%%A"
 )
 net start sppsvc /y %_Nul3%
-FOR /F "TOKENS=2 DELIMS==" %%A IN ('"WMIC PATH SoftwareLicensingProduct WHERE (ApplicationID='%_wApp%' %adoff% AND PartialProductKey is not NULL) GET LicenseFamily /VALUE" %_Nul6%') DO SET "EditionWMI=%%A"
+FOR /F "TOKENS=2 DELIMS==" %%A IN ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName SoftwareLicensingProduct -Filter "ApplicationID='%_wApp%' %adoff% AND PartialProductKey IS NOT NULL" -Property LicenseFamily -Value %_Nul6%') DO SET "EditionWMI=%%A"
 IF "%EditionWMI%"=="" (
 IF %winbuild% GEQ 17063 FOR /F "SKIP=2 TOKENS=2*" %%A IN ('REG QUERY "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v EditionId') DO SET "EditionID=%%B"
 IF %winbuild% LSS 14393 (
@@ -367,7 +367,7 @@ set aC2R19=0
 set aC2R16=0
 set aC2R15=0
 if %winbuild% GEQ 9200 if %ActOffice% NEQ 0 call :sppoff
-wmic path %spp% where (Description like '%%KMSCLIENT%%') get Name /value %_Nul2% | findstr /i Windows %_Nul1% && (set WinVL=1)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "Description LIKE '%%KMSCLIENT%%'" -Property Name -Value %_Nul2% | findstr /i Windows %_Nul1% && (set WinVL=1)
 if %WinVL% EQU 0 (
 if %ActWindows% EQU 0 (
   echo.&echo Windows activation is OFF...
@@ -389,14 +389,14 @@ reg delete "HKU\S-1-5-20\%SPPk%\%_wApp%" /f %_Null%
 reg delete "HKU\S-1-5-20\%SPPk%\%_oApp%" /f %_Null%
 )
 set _gvlk=0
-if %winbuild% GEQ 10240 wmic path %spp% where (ApplicationID='%_wApp%' and Description like '%%KMSCLIENT%%' and PartialProductKey is not NULL) get Name /value %_Nul2% | findstr /i Windows %_Nul1% && (set _gvlk=1)
+if %winbuild% GEQ 10240 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_wApp%' AND Description LIKE '%%KMSCLIENT%%' AND PartialProductKey IS NOT NULL" -Property Name -Value %_Nul2% | findstr /i Windows %_Nul1% && (set _gvlk=1)
 set gpr=0
-if %winbuild% GEQ 10240 if %SkipKMS38% NEQ 0 if %_gvlk% EQU 1 for /f "tokens=2 delims==" %%A in ('"wmic path %spp% where (ApplicationID='%_wApp%' and Description like '%%KMSCLIENT%%' and PartialProductKey is not NULL) get GracePeriodRemaining /VALUE" %_Nul6%') do set "gpr=%%A"
+if %winbuild% GEQ 10240 if %SkipKMS38% NEQ 0 if %_gvlk% EQU 1 for /f "tokens=2 delims==" %%A in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_wApp%' AND Description LIKE '%%KMSCLIENT%%' AND PartialProductKey IS NOT NULL" -Property GracePeriodRemaining -Value %_Nul6%') do set "gpr=%%A"
 if %gpr% NEQ 0 if %gpr% GTR 259200 (
 set W1nd0ws=0
-wmic path %spp% where "ApplicationID='%_wApp%' and Description like '%%KMSCLIENT%%' and PartialProductKey is not NULL" get LicenseFamily /value %_Nul2% | findstr /i EnterpriseG %_Nul1% && (call set W1nd0ws=1)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_wApp%' AND Description LIKE '%%KMSCLIENT%%' AND PartialProductKey IS NOT NULL" -Property LicenseFamily -Value %_Nul2% | findstr /i EnterpriseG %_Nul1% && (call set W1nd0ws=1)
 )
-for /f "tokens=2 delims==" %%A in ('"wmic path %sps% get Version /VALUE"') do set ver=%%A
+for /f "tokens=2 delims==" %%A in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %sps% -Property Version -Value') do set ver=%%A
 reg add "HKLM\%SPPk%" /f /v KeyManagementServiceName /t REG_SZ /d "%KMS_IP%" %_Nul3%
 reg add "HKLM\%SPPk%" /f /v KeyManagementServicePort /t REG_SZ /d "%KMS_Port%" %_Nul3%
 if %winbuild% GEQ 9200 (
@@ -411,11 +411,11 @@ reg delete "HKLM\%SPPk%\%_oApp%" /f %_Null%
 reg add "HKLM\%SPPk%\%_oApp%" /f /v KeyManagementServiceName /t REG_SZ /d "%KMS_IP%" %_Nul3%
 reg add "HKLM\%SPPk%\%_oApp%" /f /v KeyManagementServicePort /t REG_SZ /d "%KMS_Port%" %_Nul3%
 )
-if %W1nd0ws% EQU 0 for /f "tokens=2 delims==" %%G in ('"wmic path %spp% where (ApplicationID='%_wApp%' and Description like '%%KMSCLIENT%%') get ID /VALUE"') do (set app=%%G&call :sppchkwin)
-if %W1nd0ws% EQU 1 if %ActWindows% NEQ 0 for /f "tokens=2 delims==" %%G in ('"wmic path %spp% where (ApplicationID='%_wApp%' and Description like '%%KMSCLIENT%%' %adoff%) get ID /VALUE"') do (set app=%%G&call :sppchkwin)
-rem if %ESU_EDT% EQU 1 if %ActWindows% NEQ 0 for /f "tokens=2 delims==" %%G in ('"wmic path %spp% where (ApplicationID='%_wApp%' and Description like '%%KMSCLIENT%%' %addon%) get ID /VALUE"') do (set app=%%G&call :esuchk)
+if %W1nd0ws% EQU 0 for /f "tokens=2 delims==" %%G in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_wApp%' AND Description LIKE '%%KMSCLIENT%%'" -Property ID -Value') do (set app=%%G&call :sppchkwin)
+if %W1nd0ws% EQU 1 if %ActWindows% NEQ 0 for /f "tokens=2 delims==" %%G in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_wApp%' AND Description LIKE '%%KMSCLIENT%%' %adoff%" -Property ID -Value') do (set app=%%G&call :sppchkwin)
+rem if %ESU_EDT% EQU 1 if %ActWindows% NEQ 0 for /f "tokens=2 delims==" %%G in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_wApp%' AND Description LIKE '%%KMSCLIENT%%' %addon%" -Property ID -Value') do (set app=%%G&call :esuchk)
 if %W1nd0ws% EQU 1 if %ActWindows% EQU 0 (echo.&echo Windows activation is OFF...)
-if %Off1ce% EQU 1 if %ActOffice% NEQ 0 for /f "tokens=2 delims==" %%G in ('"wmic path %spp% where (ApplicationID='%_oApp%' and Description like '%%KMSCLIENT%%') get ID /VALUE"') do (set app=%%G&call :sppchkoff)
+if %Off1ce% EQU 1 if %ActOffice% NEQ 0 for /f "tokens=2 delims==" %%G in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND Description LIKE '%%KMSCLIENT%%'" -Property ID -Value') do (set app=%%G&call :sppchkoff)
 if %_AUR% EQU 0 (
 call :cREG %_Nul3%
 ) else (
@@ -439,20 +439,20 @@ set Off1ce=1
 set _sC2R=sppoff
 set _fC2R=ReturnSPP
 set vol_off15=0&set vol_off16=0&set vol_off19=0&set vol_off21=0
-wmic path %spp% where (Description like '%%KMSCLIENT%%' AND NOT Name like '%%MondoR_KMS_Automation%%') get Name /value > "!_temp!\sppchk.txt" 2>&1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "Description LIKE '%%KMSCLIENT%%' AND NOT Name LIKE '%%MondoR_KMS_Automation%%'" -Property Name -Value > "!_temp!\sppchk.txt" 2>&1
 find /i "Office 21" "!_temp!\sppchk.txt" %_Nul1% && (set vol_off21=1)
 find /i "Office 19" "!_temp!\sppchk.txt" %_Nul1% && (set vol_off19=1)
 find /i "Office 16" "!_temp!\sppchk.txt" %_Nul1% && (set vol_off16=1)
 find /i "Office 15" "!_temp!\sppchk.txt" %_Nul1% && (set vol_off15=1)
 for %%A in (15,16,19,21) do if !loc_off%%A! EQU 0 set vol_off%%A=0
 if %vol_off16% EQU 1 find /i "Office16MondoVL_KMS_Client" "!_temp!\sppchk.txt" %_Nul1% && (
-wmic path %spp% where 'ApplicationID="%_oApp%" AND LicenseFamily like "Office16O365%%"' get LicenseFamily /value %_Nul2% | find /i "O365" %_Nul1% || (set vol_off16=0)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND LicenseFamily LIKE 'Office16O365%%'" -Property LicenseFamily -Value %_Nul2% | find /i "O365" %_Nul1% || (set vol_off16=0)
 )
 if %vol_off15% EQU 1 find /i "OfficeMondoVL_KMS_Client" "!_temp!\sppchk.txt" %_Nul1% && (
-wmic path %spp% where 'ApplicationID="%_oApp%" AND LicenseFamily like "OfficeO365%%"' get LicenseFamily /value %_Nul2% | find /i "O365" %_Nul1% || (set vol_off15=0)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND LicenseFamily LIKE 'OfficeO365%%'" -Property LicenseFamily -Value %_Nul2% | find /i "O365" %_Nul1% || (set vol_off15=0)
 )
 set ret_off15=0&set ret_off16=0&set ret_off19=0&set ret_off21=0
-wmic path %spp% where (ApplicationID='%_oApp%' AND NOT Name like '%%O365%%') get Name /value > "!_temp!\sppchk.txt" 2>&1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND NOT Name LIKE '%%O365%%'" -Property Name -Value > "!_temp!\sppchk.txt" 2>&1
 find /i "R_Retail" "!_temp!\sppchk.txt" %_Nul2% | find /i "Office 21" %_Nul1% && (set ret_off21=1)
 find /i "R_Retail" "!_temp!\sppchk.txt" %_Nul2% | find /i "Office 19" %_Nul1% && (set ret_off19=1)
 find /i "R_Retail" "!_temp!\sppchk.txt" %_Nul2% | find /i "Office 16" %_Nul1% && (set ret_off16=1)
@@ -476,7 +476,7 @@ for %%a in (HomeBusiness,HomeStudent) do find /i "Office16%%aR" "!_temp!\sppchk.
   if %vol_off19% EQU 1 find /i "Office19Standard2019VL" "!_temp!\sppchk.txt" %_Nul1% || set run_off16=1
   )
 )
-if defined _C16R if %loc_off16% EQU 1 if %run_off16% EQU 0 wmic path %spp% where (ApplicationID='%_oApp%' AND LicenseFamily like 'Office16O365%%') get LicenseFamily /value %_Nul2% | find /i "O365" %_Nul1% && (
+if defined _C16R if %loc_off16% EQU 1 if %run_off16% EQU 0 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND LicenseFamily LIKE 'Office16O365%%'" -Property LicenseFamily -Value %_Nul2% | find /i "O365" %_Nul1% && (
 find /i "Office16MondoVL" "!_temp!\sppchk.txt" %_Nul1% || set run_off16=1
 )
 set vol_offgl=1
@@ -513,31 +513,31 @@ if defined _C15R (if %aC2R15% EQU 1 (echo.&echo %_mO15a%) else (echo.&echo %_mO1
 exit /b
 
 :sppchkoff
-wmic path %spp% where ID='%app%' get Name /value > "!_temp!\sppchk.txt"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property Name -Value > "!_temp!\sppchk.txt"
 find /i "Office 15" "!_temp!\sppchk.txt" %_Nul1% && (if %loc_off15% EQU 0 exit /b)
 find /i "Office 16" "!_temp!\sppchk.txt" %_Nul1% && (if %loc_off16% EQU 0 exit /b)
 find /i "Office 19" "!_temp!\sppchk.txt" %_Nul1% && (if %loc_off19% EQU 0 exit /b)
 find /i "Office 21" "!_temp!\sppchk.txt" %_Nul1% && (if %loc_off21% EQU 0 exit /b)
 if /i '%app%' EQU 'f3fb2d68-83dd-4c8b-8f09-08e0d950ac3b' (
-wmic path %spp% get ID | findstr /i "fbdb3e18-a8ef-4fb3-9183-dffd60bd0984" %_Nul3% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Property ID | findstr /i "fbdb3e18-a8ef-4fb3-9183-dffd60bd0984" %_Nul3% && (exit /b)
 )
 if /i '%app%' EQU '76093b1b-7057-49d7-b970-638ebcbfd873' (
-wmic path %spp% get ID | findstr /i "76881159-155c-43e0-9db7-2d70a9a3a4ca" %_Nul3% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Property ID | findstr /i "76881159-155c-43e0-9db7-2d70a9a3a4ca" %_Nul3% && (exit /b)
 )
 if /i '%app%' EQU 'a3b44174-2451-4cd6-b25f-66638bfb9046' (
-wmic path %spp% get ID | findstr /i "fb61ac9a-1688-45d2-8f6b-0674dbffa33c" %_Nul3% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Property ID | findstr /i "fb61ac9a-1688-45d2-8f6b-0674dbffa33c" %_Nul3% && (exit /b)
 )
 set _officespp=1
-wmic path %spp% where (PartialProductKey is not NULL) get ID /value %_Nul2% | findstr /i "%app%" %_Nul1% && (echo.&call :activate&exit /b)
-for /f "tokens=3 delims==, " %%G in ('"wmic path %spp% where ID='%app%' get Name /value"') do set OffVer=%%G
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "PartialProductKey IS NOT NULL" -Property ID -Value %_Nul2% | findstr /i "%app%" %_Nul1% && (echo.&call :activate&exit /b)
+for /f "tokens=3 delims==, " %%G in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property Name -Value') do set OffVer=%%G
 call :offchk%OffVer%
 exit /b
 
 :sppchkwin
 set _officespp=0
-if %winbuild% GEQ 14393 if %WinPerm% EQU 0 if %_gvlk% EQU 0 wmic path %spp% where (ApplicationID='%_wApp%' and Description like '%%KMSCLIENT%%' and PartialProductKey is not NULL) get Name /value %_Nul2% | findstr /i Windows %_Nul1% && (set _gvlk=1)
-wmic path %spp% where ID='%app%' get LicenseStatus /value %_Nul2% | findstr "1" %_Nul1% && (echo.&call :activate&exit /b)
-wmic path %spp% where (PartialProductKey is not NULL) get ID /value %_Nul2% | findstr /i "%app%" %_Nul1% && (echo.&call :activate&exit /b)
+if %winbuild% GEQ 14393 if %WinPerm% EQU 0 if %_gvlk% EQU 0 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_wApp%' AND Description LIKE '%%KMSCLIENT%%' AND PartialProductKey IS NOT NULL" -Property Name -Value %_Nul2% | findstr /i Windows %_Nul1% && (set _gvlk=1)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property LicenseStatus -Value %_Nul2% | findstr "1" %_Nul1% && (echo.&call :activate&exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "PartialProductKey IS NOT NULL" -Property ID -Value %_Nul2% | findstr /i "%app%" %_Nul1% && (echo.&call :activate&exit /b)
 if %winbuild% GEQ 14393 if %_gvlk% EQU 1 exit /b
 if %WinPerm% EQU 1 exit /b
 if %winbuild% LSS 10240 (call :winchk&exit /b)
@@ -570,21 +570,21 @@ if /i '%app%' EQU 'cd918a57-a41b-4c82-8dce-1a538e221a83' if /i %EditionID% NEQ C
 if /i '%app%' EQU 'ec868e65-fadf-4759-b23e-93fe37f2cc29' if /i %EditionID% NEQ ServerRdsh exit /b
 if /i '%app%' EQU 'e4db50ea-bda1-4566-b047-0ca50abc6f07' if /i %EditionID% NEQ ServerRdsh exit /b
 if /i '%app%' EQU 'e4db50ea-bda1-4566-b047-0ca50abc6f07' (
-wmic path %spp% where 'Description like "%%KMSCLIENT%%"' get ID /value | findstr /i "ec868e65-fadf-4759-b23e-93fe37f2cc29" %_Nul3% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "Description LIKE '%%KMSCLIENT%%'" -Property ID -Value | findstr /i "ec868e65-fadf-4759-b23e-93fe37f2cc29" %_Nul3% && (exit /b)
 )
 call :winchk
 exit /b
 
 :winchk
 if not defined tok (if %winbuild% GEQ 9200 (set "tok=4") else (set "tok=7"))
-wmic path %spp% where (LicenseStatus='1' and Description like '%%KMSCLIENT%%' %adoff%) get Name /value %_Nul2% | findstr /i "Windows" %_Nul3% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "LicenseStatus='1' AND Description LIKE '%%KMSCLIENT%%' %adoff%" -Property Name -Value %_Nul2% | findstr /i "Windows" %_Nul3% && (exit /b)
 echo.
-wmic path %spp% where (LicenseStatus='1' and GracePeriodRemaining='0' %adoff% and PartialProductKey is not NULL) get Name /value %_Nul2% | findstr /i "Windows" %_Nul3% && (
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "LicenseStatus='1' AND GracePeriodRemaining='0' %adoff% AND PartialProductKey IS NOT NULL" -Property Name -Value %_Nul2% | findstr /i "Windows" %_Nul3% && (
 set WinPerm=1
 )
 if %WinPerm% EQU 0 (
-wmic path %spp% where "ApplicationID='%_wApp%' and LicenseStatus='1' %adoff%" get Name /value %_Nul2% | findstr /i "Windows" %_Nul3% && (
-for /f "tokens=%tok% delims=, " %%G in ('"wmic path %spp% where (ApplicationID='%_wApp%' and LicenseStatus='1' %adoff%) get Description /VALUE"') do set "channel=%%G"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_wApp%' AND LicenseStatus='1' %adoff%" -Property Name -Value %_Nul2% | findstr /i "Windows" %_Nul3% && (
+for /f "tokens=%tok% delims=, " %%G in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_wApp%' AND LicenseStatus='1' %adoff%" -Property Description -Value') do set "channel=%%G"
   for %%A in (VOLUME_MAK, RETAIL, OEM_DM, OEM_SLP, OEM_COA, OEM_COA_SLP, OEM_COA_NSLP, OEM_NONSLP, OEM) do if /i "%%A"=="!channel!" set WinPerm=1
   )
 )
@@ -593,7 +593,7 @@ copy /y %SysPath%\slmgr.vbs "!_temp!\slmgr.vbs" %_Nul3%
 cscript //nologo "!_temp!\slmgr.vbs" /xpr %_Nul2% | findstr /i "permanently" %_Nul3% && set WinPerm=1
 )
 if %WinPerm% EQU 1 (
-for /f "tokens=2 delims==" %%x in ('"wmic path %spp% where (ApplicationID='%_wApp%' and LicenseStatus='1' %adoff%) get Name /VALUE"') do echo Checking: %%x
+for /f "tokens=2 delims==" %%x in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_wApp%' AND LicenseStatus='1' %adoff%" -Property Name -Value') do echo Checking: %%x
 echo Product is Permanently Activated.
 exit /b
 )
@@ -603,29 +603,29 @@ exit /b
 :esuchk
 set _officespp=0
 set ESU_ADD=1
-wmic path %spp% where ID='%app%' get LicenseStatus /value %_Nul2% | findstr "1" %_Nul1% && (echo.&call :activate&exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property LicenseStatus -Value %_Nul2% | findstr "1" %_Nul1% && (echo.&call :activate&exit /b)
 if /i '%app%' EQU '3fcc2df2-f625-428d-909a-1f76efc849b6' (
-wmic path %spp% where ID="77db037b-95c3-48d7-a3ab-a9c6d41093e0" get LicenseStatus /value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='77db037b-95c3-48d7-a3ab-a9c6d41093e0'" -Property LicenseStatus -Value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
 )
 if /i '%app%' EQU 'dadfcd24-6e37-47be-8f7f-4ceda614cece' (
-wmic path %spp% where ID="0e00c25d-8795-4fb7-9572-3803d91b6880" get LicenseStatus /value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='0e00c25d-8795-4fb7-9572-3803d91b6880'" -Property LicenseStatus -Value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
 )
 if /i '%app%' EQU '0c29c85e-12d7-4af8-8e4d-ca1e424c480c' (
-wmic path %spp% where ID="4220f546-f522-46df-8202-4d07afd26454" get LicenseStatus /value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='4220f546-f522-46df-8202-4d07afd26454'" -Property LicenseStatus -Value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
 )
 if /i '%app%' EQU 'f2b21bfc-a6b0-4413-b4bb-9f06b55f2812' (
-wmic path %spp% where ID="553673ed-6ddf-419c-a153-b760283472fd" get LicenseStatus /value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='553673ed-6ddf-419c-a153-b760283472fd'" -Property LicenseStatus -Value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
 )
 if /i '%app%' EQU 'bfc078d0-8c7f-475c-8519-accc46773113' (
-wmic path %spp% where ID="04fa0286-fa74-401e-bbe9-fbfbb158010d" get LicenseStatus /value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='04fa0286-fa74-401e-bbe9-fbfbb158010d'" -Property LicenseStatus -Value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
 )
 if /i '%app%' EQU '23c6188f-c9d8-457e-81b6-adb6dacb8779' (
-wmic path %spp% where ID="16c08c85-0c8b-4009-9b2b-f1f7319e45f9" get LicenseStatus /value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='16c08c85-0c8b-4009-9b2b-f1f7319e45f9'" -Property LicenseStatus -Value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
 )
 if /i '%app%' EQU 'e7cce015-33d6-41c1-9831-022ba63fe1da' (
-wmic path %spp% where ID="8e7bfb1e-acc1-4f56-abae-b80fce56cd4b" get LicenseStatus /value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='8e7bfb1e-acc1-4f56-abae-b80fce56cd4b'" -Property LicenseStatus -Value %_Nul2% | findstr "1" %_Nul1% && (exit /b)
 )
-wmic path %spp% where (PartialProductKey is not NULL) get ID /value %_Nul2% | findstr /i "%app%" %_Nul1% && (echo.&call :activate&exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "PartialProductKey IS NOT NULL" -Property ID -Value %_Nul2% | findstr /i "%app%" %_Nul1% && (echo.&call :activate&exit /b)
 call :insKey
 exit /b
 
@@ -656,13 +656,13 @@ reg delete "HKLM\%OPPk%\%_oApp%" /f %_Null%
 )
 set "vPrem="&set "vProf="
 if %loc_off14% EQU 1 (
-for /f "tokens=2 delims==" %%A in ('"wmic path %spp% where (LicenseFamily='OfficeVisioPrem-MAK') get LicenseStatus /VALUE" %_Nul6%') do set vPrem=%%A
-for /f "tokens=2 delims==" %%A in ('"wmic path %spp% where (LicenseFamily='OfficeVisioPro-MAK') get LicenseStatus /VALUE" %_Nul6%') do set vProf=%%A
+for /f "tokens=2 delims==" %%A in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "LicenseFamily='OfficeVisioPrem-MAK'" -Property LicenseStatus -Value %_Nul6%') do set vPrem=%%A
+for /f "tokens=2 delims==" %%A in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "LicenseFamily='OfficeVisioPro-MAK'" -Property LicenseStatus -Value %_Nul6%') do set vProf=%%A
 )
-for /f "tokens=2 delims==" %%A in ('"wmic path %sps% get Version /VALUE" %_Nul6%') do set ver=%%A
+for /f "tokens=2 delims==" %%A in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %sps% -Property Version -Value %_Nul6%') do set ver=%%A
 reg add "HKLM\%OPPk%" /f /v KeyManagementServiceName /t REG_SZ /d "%KMS_IP%" %_Nul3%
 reg add "HKLM\%OPPk%" /f /v KeyManagementServicePort /t REG_SZ /d "%KMS_Port%" %_Nul3%
-for /f "tokens=2 delims==" %%G in ('"wmic path %spp% where (Description like '%%KMSCLIENT%%') get ID /VALUE"') do (set app=%%G&call :osppchk)
+for /f "tokens=2 delims==" %%G in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "Description LIKE '%%KMSCLIENT%%'" -Property ID -Value') do (set app=%%G&call :osppchk)
 if %_AUR% EQU 0 (
 call :cREG %_Nul3%
 ) else (
@@ -672,12 +672,12 @@ reg delete "HKLM\%OPPk%" /f /v DisableKeyManagementServiceHostCaching %_Null%
 exit /b
 
 :win8off
-wmic path %spp% get Description /value %_Nul2% | findstr /i KMSCLIENT %_Nul1% && (
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Property Description -Value %_Nul2% | findstr /i KMSCLIENT %_Nul1% && (
 set Off1ce=1
 exit /b
 )
 set ret_off14=0
-wmic path %spp% get Description /value %_Nul2% | findstr /i channel %_Nul1% && (set ret_off14=1)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Property Description -Value %_Nul2% | findstr /i channel %_Nul1% && (set ret_off14=1)
 if defined _C14R (echo.&echo %_mO14c%) else if %_O14MSI% EQU 1 (if %ret_off14% EQU 1 echo.&echo %_mO14m%)
 exit /b
 
@@ -688,7 +688,7 @@ set Off1ce=1
 set _sC2R=win7off
 set _fC2R=ReturnOSPP
 set vol_off14=0&set vol_off15=0&set vol_off16=0&set vol_off19=0&set vol_off21=0
-wmic path %spp% where (Description like '%%KMSCLIENT%%' AND NOT Name like '%%MondoR_KMS_Automation%%') get Name /value > "!_temp!\sppchk.txt" 2>&1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "Description LIKE '%%KMSCLIENT%%' AND NOT Name LIKE '%%MondoR_KMS_Automation%%'" -Property Name -Value > "!_temp!\sppchk.txt" 2>&1
 find /i "Office 21" "!_temp!\sppchk.txt" %_Nul1% && (set vol_off21=1)
 find /i "Office 19" "!_temp!\sppchk.txt" %_Nul1% && (set vol_off19=1)
 find /i "Office 16" "!_temp!\sppchk.txt" %_Nul1% && (set vol_off16=1)
@@ -696,13 +696,13 @@ find /i "Office 15" "!_temp!\sppchk.txt" %_Nul1% && (set vol_off15=1)
 find /i "Office 14" "!_temp!\sppchk.txt" %_Nul1% && (set vol_off14=1)
 for %%A in (14,15,16,19,21) do if !loc_off%%A! EQU 0 set vol_off%%A=0
 if %vol_off16% EQU 1 find /i "Office16MondoVL_KMS_Client" "!_temp!\sppchk.txt" %_Nul1% && (
-wmic path %spp% where 'ApplicationID="%_oApp%" AND LicenseFamily like "Office16O365%%"' get LicenseFamily /value %_Nul2% | find /i "O365" %_Nul1% || (set vol_off16=0)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND LicenseFamily LIKE 'Office16O365%%'" -Property LicenseFamily -Value %_Nul2% | find /i "O365" %_Nul1% || (set vol_off16=0)
 )
 if %vol_off15% EQU 1 find /i "OfficeMondoVL_KMS_Client" "!_temp!\sppchk.txt" %_Nul1% && (
-wmic path %spp% where 'ApplicationID="%_oApp%" AND LicenseFamily like "OfficeO365%%"' get LicenseFamily /value %_Nul2% | find /i "O365" %_Nul1% || (set vol_off15=0)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND LicenseFamily LIKE 'OfficeO365%%'" -Property LicenseFamily -Value %_Nul2% | find /i "O365" %_Nul1% || (set vol_off15=0)
 )
 set ret_off14=0&set ret_off15=0&set ret_off16=0&set ret_off19=0&set ret_off21=0
-wmic path %spp% where (ApplicationID='%_oApp%' AND NOT Name like '%%O365%%') get Name /value > "!_temp!\sppchk.txt" 2>&1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND NOT Name LIKE '%%O365%%'" -Property Name -Value > "!_temp!\sppchk.txt" 2>&1
 find /i "R_Retail" "!_temp!\sppchk.txt" %_Nul2% | find /i "Office 21" %_Nul1% && (set ret_off21=1)
 find /i "R_Retail" "!_temp!\sppchk.txt" %_Nul2% | find /i "Office 19" %_Nul1% && (set ret_off19=1)
 find /i "R_Retail" "!_temp!\sppchk.txt" %_Nul2% | find /i "Office 16" %_Nul1% && (set ret_off16=1)
@@ -711,7 +711,7 @@ if %ret_off21% EQU 1 if %_O16MSI% EQU 0 set vol_off21=0
 if %ret_off19% EQU 1 if %_O16MSI% EQU 0 set vol_off19=0
 if %ret_off16% EQU 1 if %_O16MSI% EQU 0 set vol_off16=0
 if %ret_off15% EQU 1 if %_O15MSI% EQU 0 set vol_off15=0
-if %vol_off14% EQU 0 wmic path %spp% where ApplicationID='%_oA14%' get Description /value %_Nul2% | findstr /i channel %_Nul1% && (set ret_off14=1)
+if %vol_off14% EQU 0 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oA14%'" -Property Description -Value %_Nul2% | findstr /i channel %_Nul1% && (set ret_off14=1)
 set run_off16=0
 if defined _C16R if %loc_off16% EQU 1 if %vol_off16% EQU 0 if %ret_off16% EQU 1 (
 for %%a in (%DO16Ids%) do find /i "Office16%%aR" "!_temp!\sppchk.txt" %_Nul1% && (
@@ -727,7 +727,7 @@ for %%a in (HomeBusiness,HomeStudent) do find /i "Office16%%aR" "!_temp!\sppchk.
   if %vol_off19% EQU 1 find /i "Office19Standard2019VL" "!_temp!\sppchk.txt" %_Nul1% || set run_off16=1
   )
 )
-if defined _C16R if %loc_off16% EQU 1 if %run_off16% EQU 0 wmic path %spp% where (ApplicationID='%_oApp%' AND LicenseFamily like 'Office16O365%%') get LicenseFamily /value %_Nul2% | find /i "O365" %_Nul1% && (
+if defined _C16R if %loc_off16% EQU 1 if %run_off16% EQU 0 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND LicenseFamily LIKE 'Office16O365%%'" -Property LicenseFamily -Value %_Nul2% | find /i "O365" %_Nul1% && (
 find /i "Office16MondoVL" "!_temp!\sppchk.txt" %_Nul1% || set run_off16=1
 )
 set vol_offgl=1
@@ -767,24 +767,24 @@ if defined _C14R (echo.&echo %_mO14c%) else if %_O14MSI% EQU 1 (if %ret_off14% E
 exit /b
 
 :osppchk
-wmic path %spp% where ID='%app%' get Name /value > "!_temp!\sppchk.txt"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property Name -Value > "!_temp!\sppchk.txt"
 find /i "Office 14" "!_temp!\sppchk.txt" %_Nul1% && (if %loc_off14% EQU 0 exit /b)
 find /i "Office 15" "!_temp!\sppchk.txt" %_Nul1% && (if %loc_off15% EQU 0 exit /b)
 find /i "Office 16" "!_temp!\sppchk.txt" %_Nul1% && (if %loc_off16% EQU 0 exit /b)
 find /i "Office 19" "!_temp!\sppchk.txt" %_Nul1% && (if %loc_off19% EQU 0 exit /b)
 find /i "Office 21" "!_temp!\sppchk.txt" %_Nul1% && (if %loc_off21% EQU 0 exit /b)
 if /i '%app%' EQU 'f3fb2d68-83dd-4c8b-8f09-08e0d950ac3b' (
-wmic path %spp% get ID | findstr /i "fbdb3e18-a8ef-4fb3-9183-dffd60bd0984" %_Nul3% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Property ID | findstr /i "fbdb3e18-a8ef-4fb3-9183-dffd60bd0984" %_Nul3% && (exit /b)
 )
 if /i '%app%' EQU '76093b1b-7057-49d7-b970-638ebcbfd873' (
-wmic path %spp% get ID | findstr /i "76881159-155c-43e0-9db7-2d70a9a3a4ca" %_Nul3% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Property ID | findstr /i "76881159-155c-43e0-9db7-2d70a9a3a4ca" %_Nul3% && (exit /b)
 )
 if /i '%app%' EQU 'a3b44174-2451-4cd6-b25f-66638bfb9046' (
-wmic path %spp% get ID | findstr /i "fb61ac9a-1688-45d2-8f6b-0674dbffa33c" %_Nul3% && (exit /b)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Property ID | findstr /i "fb61ac9a-1688-45d2-8f6b-0674dbffa33c" %_Nul3% && (exit /b)
 )
 set _officespp=0
-wmic path %spp% where (PartialProductKey is not NULL) get ID /value %_Nul2% | findstr /i "%app%" %_Nul1% && (echo.&call :activate&exit /b)
-for /f "tokens=3 delims==, " %%G in ('"wmic path %spp% where ID='%app%' get Name /value"') do set OffVer=%%G
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "PartialProductKey IS NOT NULL" -Property ID -Value %_Nul2% | findstr /i "%app%" %_Nul1% && (echo.&call :activate&exit /b)
+for /f "tokens=3 delims==, " %%G in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property Name -Value') do set OffVer=%%G
 call :offchk%OffVer%
 exit /b
 
@@ -792,9 +792,9 @@ exit /b
 set ls=0
 set ls2=0
 set ls3=0
-for /f "tokens=2 delims==" %%A in ('"wmic path %spp% where (LicenseFamily='Office%~1') get LicenseStatus /VALUE" %_Nul6%') do set /a ls=%%A
-if "%~3" NEQ "" for /f "tokens=2 delims==" %%A in ('"wmic path %spp% where (LicenseFamily='Office%~3') get LicenseStatus /VALUE" %_Nul6%') do set /a ls2=%%A
-if "%~5" NEQ "" for /f "tokens=2 delims==" %%A in ('"wmic path %spp% where (LicenseFamily='Office%~5') get LicenseStatus /VALUE" %_Nul6%') do set /a ls3=%%A
+for /f "tokens=2 delims==" %%A in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "LicenseFamily='Office%~1'" -Property LicenseStatus -Value %_Nul6%') do set /a ls=%%A
+if "%~3" NEQ "" for /f "tokens=2 delims==" %%A in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "LicenseFamily='Office%~3'" -Property LicenseStatus -Value %_Nul6%') do set /a ls2=%%A
+if "%~5" NEQ "" for /f "tokens=2 delims==" %%A in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "LicenseFamily='Office%~5'" -Property LicenseStatus -Value %_Nul6%') do set /a ls3=%%A
 if "%ls3%" EQU "1" (
 echo Checking: %~6
 echo Product is Permanently Activated.
@@ -1031,12 +1031,12 @@ exit /b
 set S_OK=1
 echo.
 set "_key="
-if %ESU_ADD% EQU 0 for /f "tokens=2 delims==" %%x in ('"wmic path %spp% where ID='%app%' get Name /VALUE"') do echo Installing Key: %%x
-if %ESU_ADD% EQU 1 for /f "tokens=2 delims==f" %%x in ('"wmic path %spp% where ID='%app%' get Name /VALUE"') do echo Installing Key: %%x
+if %ESU_ADD% EQU 0 for /f "tokens=2 delims==" %%x in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property Name -Value') do echo Installing Key: %%x
+if %ESU_ADD% EQU 1 for /f "tokens=2 delims==f" %%x in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property Name -Value') do echo Installing Key: %%x
 set ESU_ADD=0
 call :keys %app%
 if "%_key%"=="" (echo No associated KMS Client key found&exit /b)
-wmic path %sps% where version='%ver%' call InstallProductKey ProductKey="%_key%" %_Nul3%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %sps% -Filter "Version='%ver%'" -MethodName InstallProductKey -MethodArgument "ProductKey=%_key%" %_Nul3%
 set ERRORCODE=%ERRORLEVEL%
 if %ERRORCODE% NEQ 0 (
 cmd /c exit /b %ERRORCODE%
@@ -1044,7 +1044,7 @@ echo Failed: 0x!=ExitCode!
 set S_OK=0
 exit /b
 )
-if %sps% EQU SoftwareLicensingService wmic path %sps% where version='%ver%' call RefreshLicenseStatus %_Nul3%
+if %sps% EQU SoftwareLicensingService powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %sps% -Filter "Version='%ver%'" -MethodName RefreshLicenseStatus %_Nul3%
 
 :activate
 set S_OK=1
@@ -1058,14 +1058,14 @@ if %W1nd0ws% EQU 0 if %_officespp% EQU 0 if %sps% EQU SoftwareLicensingService (
 reg add "HKLM\%SPPk%\%_wApp%\%app%" /f /v KeyManagementServiceName /t REG_SZ /d "127.0.0.2" %_Nul3%
 reg add "HKLM\%SPPk%\%_wApp%\%app%" /f /v KeyManagementServicePort /t REG_SZ /d "%KMS_Port%" %_Nul3%
 reg add "HKU\S-1-5-20\%SPPk%\%_wApp%\%app%" /f /v DiscoveredKeyManagementServiceIpAddress /t REG_SZ /d "127.0.0.2" %_Nul3%
-for /f "tokens=2 delims==" %%x in ('"wmic path %spp% where ID='%app%' get Name /VALUE"') do echo Checking: %%x
+for /f "tokens=2 delims==" %%x in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property Name -Value') do echo Checking: %%x
 echo Product is KMS 2038 Activated.
 exit /b
 )
-if %ESU_ADD% EQU 0 for /f "tokens=2 delims==" %%x in ('"wmic path %spp% where ID='%app%' get Name /VALUE"') do echo Activating: %%x
-if %ESU_ADD% EQU 1 for /f "tokens=2 delims==f" %%x in ('"wmic path %spp% where ID='%app%' get Name /VALUE"') do echo Activating: %%x
+if %ESU_ADD% EQU 0 for /f "tokens=2 delims==" %%x in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property Name -Value') do echo Activating: %%x
+if %ESU_ADD% EQU 1 for /f "tokens=2 delims==f" %%x in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property Name -Value') do echo Activating: %%x
 set ESU_ADD=0
-wmic path %spp% where ID='%app%' call Activate %_Nul3%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -MethodName Activate %_Nul3%
 call set ERRORCODE=%ERRORLEVEL%
 if %ERRORCODE% EQU -1073418187 (
 echo Product Activation Failed: 0xC004F035
@@ -1081,12 +1081,12 @@ exit /b
 )
 if %ERRORCODE% NEQ 0 (
 if %sps% EQU SoftwareLicensingService (call :StopService sppsvc) else (call :StopService osppsvc)
-wmic path %spp% where ID='%app%' call Activate %_Nul3%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -MethodName Activate %_Nul3%
 call set ERRORCODE=!ERRORLEVEL!
 )
 set gpr=0
 set gpr2=0
-for /f "tokens=2 delims==" %%x in ('"wmic path %spp% where ID='%app%' get GracePeriodRemaining /VALUE"') do (set gpr=%%x&set /a "gpr2=(%%x+1440-1)/1440")
+for /f "tokens=2 delims==" %%x in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ID='%app%'" -Property GracePeriodRemaining -Value') do (set gpr=%%x&set /a "gpr2=(%%x+1440-1)/1440")
 if %ERRORCODE% EQU 0 if %gpr% EQU 0 (
 echo Product Activation succeeded, but Remaining Period failed to increase.
 if %OSType% EQU Win7 echo This could be related to the error described in KB4487266
@@ -1127,7 +1127,7 @@ set _cphk=0
 if %_AUR% EQU 1 set _cphk=1
 if %_UNC% EQU 1 set _cphk=1
 if %_cphk% EQU 1 (
-WMIC /NAMESPACE:\\root\Microsoft\Windows\Defender PATH MSFT_MpPreference call Add ExclusionPath=%_Hook% Force=True %_Nul3%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -Namespace root\Microsoft\Windows\Defender -ClassName MSFT_MpPreference -MethodName Add -MethodArgument "ExclusionPath=%_Hook%" "Force=True" %_Nul3%
 copy /y "!_work!\bin\%xOS%.dll" %_Hook% %_Nul3%
 goto :skipsym
 )
@@ -1157,7 +1157,7 @@ if %OSType% EQU Win8 schtasks /query /tn "%_TaskEx%" %_Nul3% && (
 schtasks /delete /f /tn "%_TaskEx%" %_Nul3%
 )
 if %_UNC% EQU 1 (
-WMIC /NAMESPACE:\\root\Microsoft\Windows\Defender PATH MSFT_MpPreference call Remove ExclusionPath=%_Hook% Force=True %_Nul3%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -Namespace root\Microsoft\Windows\Defender -ClassName MSFT_MpPreference -MethodName Remove -MethodArgument "ExclusionPath=%_Hook%" "Force=True" %_Nul3%
 )
 goto :eof
 
@@ -1258,9 +1258,9 @@ echo Verify that Antivirus protection is OFF or the registry path is excluded.
 
 set E_WMI=0
 for /f "skip=2 tokens=2*" %%a in ('reg query HKLM\SYSTEM\CurrentControlSet\Services\WinMgmt /v Start %_Nul6%') do if /i %%b equ 0x4 set E_WMI=1
-wmic /locale:ms_409 computersystem get Name /value %_Nul2% | find /i "Name" %_Nul1%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName Win32_ComputerSystem -Property Name -Value %_Nul2% | find /i "Name" %_Nul1%
 if %errorlevel% NEQ 0 set E_WMI=1
-wmic /locale:ms_409 path SoftwareLicensingService get Version /value %_Nul2% | find /i "Version" %_Nul1%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName SoftwareLicensingService -Property Version -Value %_Nul2% | find /i "Version" %_Nul1%
 if %errorlevel% NEQ 0 set E_WMI=1
 if %E_WMI% EQU 1 (
 echo.
@@ -1454,7 +1454,7 @@ set _sps=OfficeSoftwareProtectionService
 set _vbsi="!_OSPP15VBS!" /inslic:
 )
 set "_wmi="
-for /f "tokens=2 delims==" %%# in ('"wmic path %_sps% get version /value" %_Nul6%') do set "_wmi=%%#"
+for /f "tokens=2 delims==" %%# in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %_sps% -Property Version -Value %_Nul6%') do set "_wmi=%%#"
 if "%_wmi%"=="" (
 goto :%_fC2R%
 )
@@ -1478,7 +1478,7 @@ reg query %kNext% | findstr /i /r "visio.*" %_Nul2% | find /i "0x2" %_Nul1% && s
 reg query %kNext% | findstr /i /r "visio.*" %_Nul2% | find /i "0x3" %_Nul1% && set sub_vis=1
 )
 set _Retail=0
-wmic path %_spp% where "ApplicationID='%_oApp%' AND LicenseStatus='1' AND PartialProductKey<>NULL" get Description %_Nul2% |findstr /V /R "^$" >"!_temp!\crvRetail.txt"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %_spp% -Filter "ApplicationID='%_oApp%' AND LicenseStatus='1' AND PartialProductKey IS NOT NULL" -Property Description %_Nul2% |findstr /V /R "^$" >"!_temp!\crvRetail.txt"
 find /i "RETAIL channel" "!_temp!\crvRetail.txt" %_Nul1% && set _Retail=1
 find /i "RETAIL(MAK) channel" "!_temp!\crvRetail.txt" %_Nul1% && set _Retail=1
 find /i "TIMEBASED_SUB channel" "!_temp!\crvRetail.txt" %_Nul1% && set _Retail=1
@@ -1516,8 +1516,8 @@ popd
 set _O16O365=0
 set _C16Msg=0
 set _C15Msg=0
-if %_Retail% EQU 1 wmic path %_spp% where "ApplicationID='%_oApp%' AND LicenseStatus='1' AND PartialProductKey<>NULL" get LicenseFamily %_Nul2% |findstr /V /R "^$" >"!_temp!\crvRetail.txt"
-wmic path %_spp% where "ApplicationID='%_oApp%'" get LicenseFamily %_Nul2% |findstr /V /R "^$" >"!_temp!\crvVolume.txt" 2>&1
+if %_Retail% EQU 1 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %_spp% -Filter "ApplicationID='%_oApp%' AND LicenseStatus='1' AND PartialProductKey IS NOT NULL" -Property LicenseFamily %_Nul2% |findstr /V /R "^$" >"!_temp!\crvRetail.txt"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %_spp% -Filter "ApplicationID='%_oApp%'" -Property LicenseFamily %_Nul2% |findstr /V /R "^$" >"!_temp!\crvVolume.txt" 2>&1
 
 if %_Office16% EQU 0 goto :R15V
 
@@ -1597,7 +1597,7 @@ if %_Retail% EQU 1 reg query %_PRIDs%\ProPlusRetail.16 %_Nul3% && (
   find /i "Office16ProPlusVL_MAK" "!_temp!\crvRetail.txt" %_Nul1% && (set _ProPlus=0 & set aC2R16=1)
 )
 find /i "Office16MondoVL_KMS_Client" "!_temp!\crvVolume.txt" %_Nul1% && (
-wmic path %spp% where 'ApplicationID="%_oApp%" AND LicenseFamily like "Office16O365%%"' get LicenseFamily /value %_Nul2% | find /i "O365" %_Nul1% && (
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND LicenseFamily LIKE 'Office16O365%%'" -Property LicenseFamily -Value %_Nul2% | find /i "O365" %_Nul1% && (
   for %%a in (O365ProPlus,O365Business,O365SmallBusPrem,O365HomePrem,O365EduCloud) do set _%%a=0
   )
 )
@@ -1841,7 +1841,7 @@ if %_Retail% EQU 1 reg query %_PR15IDs%\Active\ProPlusRetail\x-none %_Nul3% && (
   find /i "OfficeProPlusVL_MAK" "!_temp!\crvRetail.txt" %_Nul1% && (set _ProPlus=0 & set aC2R15=1)
 )
 find /i "OfficeMondoVL_KMS_Client" "!_temp!\crvVolume.txt" %_Nul1% && (
-wmic path %spp% where 'ApplicationID="%_oApp%" AND LicenseFamily like "OfficeO365%%"' get LicenseFamily /value %_Nul2% | find /i "O365" %_Nul1% && (
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %spp% -Filter "ApplicationID='%_oApp%' AND LicenseFamily LIKE 'OfficeO365%%'" -Property LicenseFamily -Value %_Nul2% | find /i "O365" %_Nul1% && (
   for %%a in (O365ProPlus,O365Business,O365SmallBusPrem,O365HomePrem) do set _%%a=0
   )
 )
@@ -1963,7 +1963,7 @@ reg delete %_OSPP15Ready% /f /v %_ID%.OSPPReady %_Nul3%
 for %%# in ("!_Licenses15Path!\%_patt%*.xrm-ms") do (
 %_cscript% %_vbsi%"!_Licenses15Path!\%%~nx#"
 )
-if defined _pkey wmic path %_sps% where version='%_wmi%' call InstallProductKey ProductKey="%_pkey%" %_Nul3%
+if defined _pkey powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %_sps% -Filter "Version='%_wmi%'" -MethodName InstallProductKey -MethodArgument "ProductKey=%_pkey%" %_Nul3%
 reg add %_OSPP15Ready% /f /v %_ID%.OSPPReady /t %_OSPP15ReadT% /d 1 %_Nul1%
 reg query %_Con15fig% %_Nul2% | findstr /I "%_ID%" %_Nul1%
 if %errorlevel% NEQ 0 (
@@ -1978,7 +1978,7 @@ for %%a in (%_RetIds%,ProPlus) do set "_%%a="
 if %_Office15% EQU 1 (
 for %%a in (%_R15Ids%,ProPlus) do set "_%%a="
 )
-if %winbuild% GEQ 9200 wmic path %_sps% where version='%_wmi%' call RefreshLicenseStatus %_Nul3%
+if %winbuild% GEQ 9200 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CimQuery.ps1" -ClassName %_sps% -Filter "Version='%_wmi%'" -MethodName RefreshLicenseStatus %_Nul3%
 if exist "%SysPath%\spp\store_test\2.0\tokens.dat" if defined _copp (
 %_cscript% %_SLMGR% /rilc
 )
